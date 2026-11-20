@@ -38,3 +38,47 @@ test('a wrong group leaves the active picture in place for a retry', async ({ pa
   await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
   await expect(page.locator('[data-item]')).toBeVisible();
 });
+
+test('the INICI button returns to the challenge menu', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Comença a jugar' }).click();
+
+  await page.getByRole('button', { name: 'INICI' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Juguem a classificar!' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Comença a jugar' })).toBeVisible();
+  await expect(page.locator('[data-screen="round"]')).toHaveCount(0);
+});
+
+test('a picture can be sorted by dragging it to the correct group', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Comença a jugar' }).click();
+  const correctGroup = await correctGroupForCurrentPicture(page);
+
+  await page.locator('[data-item]').dragTo(page.locator(`[data-target="${correctGroup}"]`));
+
+  await expect(page.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1');
+  await expect(page.getByRole('status')).toHaveText('Molt bé!');
+});
+
+test('one wrong placement reduces the final score to four stars', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Comença a jugar' }).click();
+
+  const firstCorrectGroup = await correctGroupForCurrentPicture(page);
+  const firstWrongGroup = await page.locator('[data-target]').evaluateAll(
+    (targets, id) => targets.find(target => target.dataset.target !== id).dataset.target,
+    firstCorrectGroup,
+  );
+  await page.locator(`[data-target="${firstWrongGroup}"]`).click();
+  await page.locator(`[data-target="${firstCorrectGroup}"]`).click();
+
+  for (let completed = 1; completed < 6; completed += 1) {
+    const correctGroup = await correctGroupForCurrentPicture(page);
+    await page.locator(`[data-target="${correctGroup}"]`).click();
+  }
+
+  await expect(page.locator('[data-screen="result"]')).toBeVisible();
+  await expect(page.locator('.result-copy')).toHaveText('4 de 5 estrelles');
+  await expect(page.locator('.result-stars')).toHaveAttribute('aria-label', '4 estrelles');
+});
